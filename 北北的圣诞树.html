@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>北北的圣诞树 (GitHub修复版)</title>
+    <title>北北的圣诞树</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: "Microsoft YaHei", sans-serif; -webkit-tap-highlight-color: transparent; }
         
@@ -16,23 +16,16 @@
         
         #start-btn {
             padding: 15px 40px; 
-            border: 2px solid #555; /* 默认灰色 */
-            background: #222;
-            color: #888; 
+            border: 2px solid #FFD700; 
+            background: rgba(255, 215, 0, 0.15);
+            color: #FFD700; 
             font-size: 18px; 
             border-radius: 30px; 
-            cursor: not-allowed; 
-            box-shadow: none; 
+            cursor: pointer; 
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); 
             text-transform: uppercase; 
             font-weight: bold;
             transition: all 0.3s;
-            pointer-events: none;
-        }
-        /* 激活态 */
-        #start-btn.ready {
-            border-color: #FFD700; background: rgba(255, 215, 0, 0.15);
-            color: #FFD700; cursor: pointer; pointer-events: auto;
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
         }
         #start-btn:active { transform: scale(0.95); }
 
@@ -67,7 +60,7 @@
         }
         .active-gesture { color: #FFD700 !important; text-shadow: 0 0 20px #FFD700; transform: scale(1.1); }
         
-        /* 视频画面 (右上角) */
+        /* 隐藏的视频源 */
         #video-feed {
             position: absolute; top: 10px; right: 10px; width: 80px; height: 100px;
             transform: scaleX(-1); border: 1px solid #444; opacity: 0.3; object-fit: cover; z-index: 20; border-radius: 5px;
@@ -83,13 +76,6 @@
         @media (max-width: 600px) { #main-title { font-size: 32px; top: 10%; } }
     </style>
 
-    <script>
-        window.onerror = function(msg) {
-            var log = document.getElementById('error-log');
-            log.style.display = 'block'; log.innerText += "⚠️ " + msg + "\n";
-        };
-    </script>
-
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
     <script type="importmap">
     {
@@ -99,18 +85,17 @@
         }
     }
     </script>
-    
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
     <div id="start-overlay">
         <h1 style="color:#FFD700; margin-bottom: 30px; text-shadow: 0 0 20px #FF4500;">🎄 北北的圣诞树</h1>
-        <button id="start-btn">⏳ 正在连接魔法...</button>
-        <div style="margin-top: 20px; font-size: 12px; color: #aaa;">请允许摄像头权限</div>
+        <button id="start-btn">✨ 点击开启魔法</button>
+        <div style="margin-top: 20px; font-size: 12px; color: #aaa;">开启后将自动播放音乐</div>
     </div>
 
     <div id="main-title">北北的圣诞树</div>
@@ -135,35 +120,22 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
-        // --- 核心修复：检查 MediaPipe 是否加载完毕 ---
-        function checkLibraryLoaded() {
-            if (window.Hands && window.Camera) {
-                const btn = document.getElementById('start-btn');
-                btn.innerText = "✨ 点击开启魔法";
-                btn.classList.add('ready');
-            } else {
-                // 如果没加载完，500ms 后再查一次
-                setTimeout(checkLibraryLoaded, 500);
-            }
-        }
-        // 开始检查
-        checkLibraryLoaded();
-
         // --- 音乐控制 ---
         const bgm = document.getElementById('bgm');
         const musicIcon = document.getElementById('music-control');
         let isMusicPlaying = false;
 
         musicIcon.addEventListener('click', () => {
-            if(isMusicPlaying) { bgm.pause(); musicIcon.innerText = "🔇"; isMusicPlaying = false; } 
-            else { bgm.play(); musicIcon.innerText = "🔊"; isMusicPlaying = true; }
+            if(isMusicPlaying) {
+                bgm.pause(); musicIcon.innerText = "🔇"; isMusicPlaying = false;
+            } else {
+                bgm.play(); musicIcon.innerText = "🔊"; isMusicPlaying = true;
+            }
         });
 
         // --- 启动逻辑 ---
         const btn = document.getElementById('start-btn');
         btn.addEventListener('click', async function() {
-            if (!this.classList.contains('ready')) return; // 没加载完不准点
-
             this.innerText = "正在启动...";
             this.style.opacity = "0.7";
             try {
@@ -176,18 +148,21 @@
                 initMediaPipe();
             } catch (e) {
                 this.innerText = "❌ 启动失败";
-                document.getElementById('error-log').innerText = e.message;
-                alert("启动失败：\n1. 请确保网址是 HTTPS\n2. 请点击地址栏的锁图标，允许摄像头权限");
+                alert("启动失败，请检查HTTPS和摄像头权限。");
             }
         });
 
         // --- 配置 ---
-        const MY_PHOTOS = [ 'photos/1.jpg', 'photos/2.jpg', 'photos/3.jpg', 'photos/4.jpg', 'photos/5.jpg' ];
+        const MY_PHOTOS = [
+            'photos/1.jpg', 'photos/2.jpg', 'photos/3.jpg', 'photos/4.jpg', 'photos/5.jpg', 'photos/6.jpg', 'photos/7.jpg', 'photos/8.jpg', 'photos/9.jpg', 'photos/10.jpg', 'photos/11.jpg', 'photos/12.jpg', 'photos/13.jpg', 'photos/14.jpg'
+        ];
+
         const CONFIG = {
             colors: { gold: 0xFFD700, red: 0xDC143C, green: 0x006400 },
-            particleCount: 1600, treeHeight: 650, treeRadius: 280, snowCount: 3000,
-            photoBaseSize: { width: 32, height: 42 },
-            photoBrightness: { normal: { intensity: 0.5, color: {r:1, g:1, b:1} }, zoomed: { intensity: 0.8, color: {r:1, g:1, b:1} } }
+            particleCount: 1600, 
+            treeHeight: 650,
+            treeRadius: 280,
+            snowCount: 3000
         };
 
         let scene, camera, renderer, composer;
@@ -217,12 +192,15 @@
 
             const ambient = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambient);
+            
             const topLight = new THREE.PointLight(CONFIG.colors.gold, 5.0, 1500);
             topLight.position.set(0, 600, 100);
             scene.add(topLight);
+            
             const frontLight = new THREE.DirectionalLight(0xffffff, 2.0);
             frontLight.position.set(0, 0, 1000);
             scene.add(frontLight);
+
             const bottomLight = new THREE.PointLight(CONFIG.colors.red, 3.0, 1000);
             bottomLight.position.set(0, -400, 200);
             scene.add(bottomLight);
@@ -230,6 +208,7 @@
             const renderScene = new RenderPass(scene, camera);
             const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
             bloom.threshold = 0.2; bloom.strength = 1.2; bloom.radius = 0.5;
+            
             composer = new EffectComposer(renderer);
             composer.addPass(renderScene);
             composer.addPass(bloom);
@@ -335,38 +314,61 @@
         function loadMyPhotos() {
             const loader = new THREE.TextureLoader();
             MY_PHOTOS.forEach(path => {
-                loader.load(path, (tex) => { createPhotoMesh(tex); }, undefined, (err) => console.warn(`加载失败: ${path}`));
+                // 等待图片加载完成再创建，以获取尺寸
+                loader.load(path, (tex) => { 
+                    createPhotoMesh(tex); 
+                }, undefined, (err) => console.warn(`加载失败: ${path}`));
             });
         }
 
         function createPhotoMesh(tex) {
             tex.colorSpace = THREE.SRGBColorSpace;
+            
+            // === 修复点1：自动适配图片比例 ===
+            const img = tex.image;
+            const aspectRatio = img.width / img.height;
+            const baseHeight = 42; // 基准高度
+            const width = baseHeight * aspectRatio;
+            const height = baseHeight;
+
+            // 1. 照片材质 (修复点2：去掉白色自发光，改为emissiveMap，增加粗糙度防过曝)
             const photoMat = new THREE.MeshStandardMaterial({
-                map: tex, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.1,
-                color: 0xffffff, emissive: 0xffffff, emissiveMap: tex, 
-                emissiveIntensity: CONFIG.photoBrightness.normal.intensity
+                map: tex, side: THREE.DoubleSide, 
+                roughness: 0.8, // 哑光，防止高光把照片变白
+                metalness: 0.0,
+                color: 0xffffff, // 纯白底色
+                emissive: 0x000000, // 默认不发白光
+                emissiveMap: tex,   // 按照图片颜色发光
+                emissiveIntensity: 0.2 // 微弱发光，在暗处可见即可
             });
-            const photoGeo = new THREE.PlaneGeometry(CONFIG.photoBaseSize.width, CONFIG.photoBaseSize.height);
+            const photoGeo = new THREE.PlaneGeometry(width, height);
             const photoMesh = new THREE.Mesh(photoGeo, photoMat);
             photoMesh.renderOrder = 1;
 
+            // 2. 金色相框材质
             const frameMat = new THREE.MeshStandardMaterial({
-                color: 0xFFD700, metalness: 1.0, roughness: 0.2, emissive: 0xFFD700, emissiveIntensity: 0.3 
+                color: 0xFFD700, metalness: 1.0, roughness: 0.3,
+                emissive: 0xFFD700, emissiveIntensity: 0.2 
             });
-            const frameMargin = 4;
-            const frameGeo = new THREE.PlaneGeometry(CONFIG.photoBaseSize.width + frameMargin, CONFIG.photoBaseSize.height + frameMargin);
+            // 边框几何体 (略大)
+            const frameMargin = 3;
+            const frameGeo = new THREE.PlaneGeometry(width + frameMargin, height + frameMargin);
             const frameMesh = new THREE.Mesh(frameGeo, frameMat);
             frameMesh.position.z = -0.5; 
 
+            // 3. 组合
             const group = new THREE.Group();
-            group.add(photoMesh); group.add(frameMesh); 
+            group.add(photoMesh); 
+            group.add(frameMesh); 
 
+            // 4. 位置
             const y = Math.random() * (CONFIG.treeHeight - 100) - (CONFIG.treeHeight/2 - 50);
             const r = CONFIG.treeRadius * (1 - (y + CONFIG.treeHeight/2)/CONFIG.treeHeight) + 20;
             const theta = Math.random() * Math.PI * 2;
             group.userData = {
                 treePos: { x: r * Math.cos(theta), y: y, z: r * Math.sin(theta) },
-                scatterPos: { x: (Math.random()-0.5)*1000, y: (Math.random()-0.5)*1000, z: (Math.random()-0.5)*1000 }
+                scatterPos: { x: (Math.random()-0.5)*1000, y: (Math.random()-0.5)*1000, z: (Math.random()-0.5)*1000 },
+                originalScale: 1
             };
             group.position.copy(group.userData.treePos);
             group.lookAt(0, y, 0);
@@ -377,14 +379,12 @@
         function transformTo(mode) {
             if(currentMode === mode) return;
             currentMode = mode;
+            
             if(activePhoto) {
                 new TWEEN.Tween(activePhoto.scale).to({x:1, y:1, z:1}, 800).start();
-                if(activePhoto.children[0]) {
-                    new TWEEN.Tween(activePhoto.children[0].material).to({ emissiveIntensity: CONFIG.photoBrightness.normal.intensity }, 800).start();
-                    new TWEEN.Tween(activePhoto.children[0].material.color).to(CONFIG.photoBrightness.normal.color, 800).start();
-                }
                 activePhoto = null;
             }
+
             const k = mode === 'TREE' ? 'treePos' : 'scatterPos';
             const ease = mode === 'TREE' ? TWEEN.Easing.Back.Out : TWEEN.Easing.Exponential.Out;
             particles.forEach(p => {
@@ -395,7 +395,8 @@
             });
             photos.forEach(p => {
                 new TWEEN.Tween(p.position).to(p.userData[k], 2000).easing(ease).onUpdate(() => { 
-                    if(p && mode === 'SCATTER') p.lookAt(camera.position); else if(p) p.lookAt(0, p.position.y, 0); 
+                    if(p && mode === 'SCATTER') p.lookAt(camera.position); 
+                    else if(p) p.lookAt(0, p.position.y, 0); 
                 }).start();
             });
         }
@@ -406,21 +407,27 @@
             currentMode = 'ZOOM';
             document.getElementById('gesture-status').innerText = "查看照片";
             
-            if(activePhoto.children[0]) {
-                new TWEEN.Tween(activePhoto.children[0].material).to({ emissiveIntensity: CONFIG.photoBrightness.zoomed.intensity }, 1000).start();
-                new TWEEN.Tween(activePhoto.children[0].material.color).to(CONFIG.photoBrightness.zoomed.color, 1000).start();
-            }
-
+            // 计算目标位置 (相机前方 150 单位)
             const targetPos = new THREE.Vector3().copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(150));
-            const isMobile = window.innerWidth < 600 || window.innerWidth < window.innerHeight;
+            
+            // === 修复点3：智能计算缩放比例 (基于FOV) ===
+            // 计算距离 150 处的视锥体高度
+            const vFov = camera.fov * Math.PI / 180;
+            const visibleHeight = 2 * Math.tan(vFov / 2) * 150;
+            const visibleWidth = visibleHeight * camera.aspect;
+
+            // 获取照片组的大小 (Box3)
+            const box = new THREE.Box3().setFromObject(activePhoto);
+            const size = box.getSize(new THREE.Vector3());
+            
+            // 目标：让照片占据屏幕宽度的 85% (手机) 或 高度的 60% (电脑)
             let targetScale;
-            const margin = 0.85; 
-            if (isMobile) {
-                targetScale = (window.innerWidth * margin) / CONFIG.photoBaseSize.width;
-                targetScale = Math.max(2.5, Math.min(targetScale, 6));
+            if (window.innerWidth < window.innerHeight) {
+                // 手机竖屏：以宽为准
+                targetScale = (visibleWidth * 0.85) / size.x;
             } else {
-                targetScale = (window.innerHeight * margin) / CONFIG.photoBaseSize.height;
-                targetScale = Math.max(4, Math.min(targetScale, 8));
+                // 电脑横屏：以高为准
+                targetScale = (visibleHeight * 0.6) / size.y;
             }
 
             new TWEEN.Tween(activePhoto.position).to(targetPos, 1000).easing(TWEEN.Easing.Elastic.Out).onUpdate(() => {
@@ -466,11 +473,9 @@
         async function initMediaPipe() {
             if (!window.Hands) return;
             const videoElement = document.getElementById('video-feed');
-            const hands = new window.Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`});
-            
+            const hands = new window.Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
             hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
             hands.onResults(onResults);
-            
             const cam = new window.Camera(videoElement, {
                 onFrame: async () => { await hands.send({image: videoElement}); },
                 width: 320, height: 240, facingMode: "user"
