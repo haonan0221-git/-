@@ -162,7 +162,12 @@
             particleCount: 1600, 
             treeHeight: 650,
             treeRadius: 280,
-            snowCount: 3000
+            snowCount: 3000,
+            photoBaseSize: { width: 32, height: 42 },
+            photoBrightness: {
+                normal: { intensity: 0.5, color: {r:1, g:1, b:1} }
+                // removed zoomed brightness config
+            }
         };
 
         let scene, camera, renderer, composer;
@@ -279,8 +284,17 @@
             const giftGeo = new THREE.BoxGeometry(1.5, 1.5, 1.5);
             const candyGeo = new THREE.CylinderGeometry(0.4, 0.4, 1.5, 8);
 
-            const matGold = new THREE.MeshStandardMaterial({ color: CONFIG.colors.gold, roughness: 0.15, metalness: 0.9, emissive: CONFIG.colors.gold, emissiveIntensity: 0.5 });
-            const matRed = new THREE.MeshStandardMaterial({ color: CONFIG.colors.red, roughness: 0.15, metalness: 0.8, emissive: CONFIG.colors.red, emissiveIntensity: 0.5 });
+            // === 修改点1：调高球的亮度 (0.2 -> 0.45) ===
+            const matGold = new THREE.MeshStandardMaterial({ 
+                color: CONFIG.colors.gold, roughness: 0.15, metalness: 0.9, 
+                emissive: CONFIG.colors.gold, 
+                emissiveIntensity: 0.45 // 调亮
+            });
+            const matRed = new THREE.MeshStandardMaterial({ 
+                color: CONFIG.colors.red, roughness: 0.15, metalness: 0.8, 
+                emissive: CONFIG.colors.red, 
+                emissiveIntensity: 0.45 // 调亮
+            });
             const matGreen = new THREE.MeshStandardMaterial({ color: CONFIG.colors.green, roughness: 0.8, metalness: 0.1 });
             const matGiftBlue = new THREE.MeshStandardMaterial({ color: 0x4169E1, roughness: 0.5, metalness: 0.1 });
             const matGiftPurple = new THREE.MeshStandardMaterial({ color: 0x9370DB, roughness: 0.5, metalness: 0.1 });
@@ -314,54 +328,44 @@
         function loadMyPhotos() {
             const loader = new THREE.TextureLoader();
             MY_PHOTOS.forEach(path => {
-                // 等待图片加载完成再创建，以获取尺寸
-                loader.load(path, (tex) => { 
-                    createPhotoMesh(tex); 
-                }, undefined, (err) => console.warn(`加载失败: ${path}`));
+                loader.load(path, (tex) => { createPhotoMesh(tex); }, undefined, (err) => console.warn(`加载失败: ${path}`));
             });
         }
 
         function createPhotoMesh(tex) {
             tex.colorSpace = THREE.SRGBColorSpace;
-            
-            // === 修复点1：自动适配图片比例 ===
             const img = tex.image;
             const aspectRatio = img.width / img.height;
-            const baseHeight = 42; // 基准高度
+            const baseHeight = 42; 
             const width = baseHeight * aspectRatio;
             const height = baseHeight;
 
-            // 1. 照片材质 (修复点2：去掉白色自发光，改为emissiveMap，增加粗糙度防过曝)
             const photoMat = new THREE.MeshStandardMaterial({
                 map: tex, side: THREE.DoubleSide, 
-                roughness: 0.8, // 哑光，防止高光把照片变白
+                roughness: 0.8, 
                 metalness: 0.0,
-                color: 0xffffff, // 纯白底色
-                emissive: 0x000000, // 默认不发白光
-                emissiveMap: tex,   // 按照图片颜色发光
-                emissiveIntensity: 0.2 // 微弱发光，在暗处可见即可
+                color: 0xffffff, 
+                emissive: 0x000000, 
+                emissiveMap: tex,   
+                emissiveIntensity: 0.2 
             });
             const photoGeo = new THREE.PlaneGeometry(width, height);
             const photoMesh = new THREE.Mesh(photoGeo, photoMat);
             photoMesh.renderOrder = 1;
 
-            // 2. 金色相框材质
             const frameMat = new THREE.MeshStandardMaterial({
                 color: 0xFFD700, metalness: 1.0, roughness: 0.3,
                 emissive: 0xFFD700, emissiveIntensity: 0.2 
             });
-            // 边框几何体 (略大)
             const frameMargin = 3;
             const frameGeo = new THREE.PlaneGeometry(width + frameMargin, height + frameMargin);
             const frameMesh = new THREE.Mesh(frameGeo, frameMat);
             frameMesh.position.z = -0.5; 
 
-            // 3. 组合
             const group = new THREE.Group();
             group.add(photoMesh); 
             group.add(frameMesh); 
 
-            // 4. 位置
             const y = Math.random() * (CONFIG.treeHeight - 100) - (CONFIG.treeHeight/2 - 50);
             const r = CONFIG.treeRadius * (1 - (y + CONFIG.treeHeight/2)/CONFIG.treeHeight) + 20;
             const theta = Math.random() * Math.PI * 2;
@@ -378,10 +382,22 @@
 
         function transformTo(mode) {
             if(currentMode === mode) return;
+
+            // === 修改点3：如果切换回 TREE 模式，重新随机照片位置 ===
+            if (mode === 'TREE') {
+                 photos.forEach(p => {
+                    const y = Math.random() * (CONFIG.treeHeight - 100) - (CONFIG.treeHeight/2 - 50);
+                    const r = CONFIG.treeRadius * (1 - (y + CONFIG.treeHeight/2)/CONFIG.treeHeight) + 20;
+                    const theta = Math.random() * Math.PI * 2;
+                    p.userData.treePos = { x: r * Math.cos(theta), y: y, z: r * Math.sin(theta) };
+                 });
+            }
+            
             currentMode = mode;
             
             if(activePhoto) {
                 new TWEEN.Tween(activePhoto.scale).to({x:1, y:1, z:1}, 800).start();
+                // === 修改点2：移除了变回正常亮度时的动画，因为查看时不再变亮了 ===
                 activePhoto = null;
             }
 
@@ -407,26 +423,20 @@
             currentMode = 'ZOOM';
             document.getElementById('gesture-status').innerText = "查看照片";
             
-            // 计算目标位置 (相机前方 150 单位)
+            // === 修改点2：移除了查看照片时变亮的代码 (那道光) ===
+
             const targetPos = new THREE.Vector3().copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(150));
-            
-            // === 修复点3：智能计算缩放比例 (基于FOV) ===
-            // 计算距离 150 处的视锥体高度
             const vFov = camera.fov * Math.PI / 180;
             const visibleHeight = 2 * Math.tan(vFov / 2) * 150;
             const visibleWidth = visibleHeight * camera.aspect;
 
-            // 获取照片组的大小 (Box3)
             const box = new THREE.Box3().setFromObject(activePhoto);
             const size = box.getSize(new THREE.Vector3());
             
-            // 目标：让照片占据屏幕宽度的 85% (手机) 或 高度的 60% (电脑)
             let targetScale;
             if (window.innerWidth < window.innerHeight) {
-                // 手机竖屏：以宽为准
                 targetScale = (visibleWidth * 0.85) / size.x;
             } else {
-                // 电脑横屏：以高为准
                 targetScale = (visibleHeight * 0.6) / size.y;
             }
 
