@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>北北的圣诞树 (摄像头可视版)</title>
+    <title>北北的圣诞树 (GitHub修复版)</title>
     <style>
         body { margin: 0; overflow: hidden; background-color: #000; font-family: "Microsoft YaHei", sans-serif; -webkit-tap-highlight-color: transparent; }
         
@@ -16,16 +16,23 @@
         
         #start-btn {
             padding: 15px 40px; 
-            border: 2px solid #FFD700; 
-            background: rgba(255, 215, 0, 0.15);
-            color: #FFD700; 
+            border: 2px solid #555; /* 默认灰色 */
+            background: #222;
+            color: #888; 
             font-size: 18px; 
             border-radius: 30px; 
-            cursor: pointer; 
-            box-shadow: 0 0 20px rgba(255, 215, 0, 0.4); 
+            cursor: not-allowed; 
+            box-shadow: none; 
             text-transform: uppercase; 
             font-weight: bold;
             transition: all 0.3s;
+            pointer-events: none;
+        }
+        /* 激活态 */
+        #start-btn.ready {
+            border-color: #FFD700; background: rgba(255, 215, 0, 0.15);
+            color: #FFD700; cursor: pointer; pointer-events: auto;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.4);
         }
         #start-btn:active { transform: scale(0.95); }
 
@@ -42,6 +49,14 @@
             to { text-shadow: 0 0 30px #FFD700, 0 0 50px #FF4500; opacity: 1; }
         }
 
+        /* 3. 错误日志 */
+        #error-log {
+            position: fixed; bottom: 0; left: 0; width: 100%; max-height: 100px;
+            background: rgba(50, 0, 0, 0.8); color: #ffaaaa; 
+            font-size: 10px; z-index: 2000; overflow-y: auto;
+            padding: 5px; pointer-events: none; display: none;
+        }
+
         /* UI */
         #ui-layer { pointer-events: none; position: absolute; width: 100%; height: 100%; z-index: 10; top:0; left:0;}
         .hud-bottom { position: absolute; bottom: 20px; width: 100%; text-align: center; color: rgba(255,255,255,0.4); font-size: 12px; }
@@ -52,35 +67,28 @@
         }
         .active-gesture { color: #FFD700 !important; text-shadow: 0 0 20px #FFD700; transform: scale(1.1); }
         
-        /* === 修改点：让摄像头显示在右上角 === */
+        /* 视频画面 (右上角) */
         #video-feed {
-            position: absolute; 
-            top: 20px; 
-            right: 20px; 
-            width: 160px; /* 宽度 */
-            height: 120px; /* 高度 */
-            object-fit: cover; /* 保持比例填满 */
-            transform: scaleX(-1); /* 镜像翻转，像照镜子一样 */
-            opacity: 0.7; /* 稍微透明一点，不挡视线 */
-            border: 1px solid rgba(255, 215, 0, 0.3); /* 金色微边框 */
-            border-radius: 8px; /* 圆角 */
-            z-index: 100; /* 在最上层 */
-            pointer-events: none; /* 让鼠标可以穿透它点击后面的东西 */
+            position: absolute; top: 10px; right: 10px; width: 80px; height: 100px;
+            transform: scaleX(-1); border: 1px solid #444; opacity: 0.3; object-fit: cover; z-index: 20; border-radius: 5px;
         }
         
-        /* 音乐控制 (左上角) */
+        /* 音乐控制 */
         #music-control {
             position: absolute; top: 20px; left: 20px; z-index: 100;
             color: rgba(255,255,255,0.5); font-size: 24px; cursor: pointer;
             pointer-events: auto;
         }
 
-        @media (max-width: 600px) { 
-            #main-title { font-size: 32px; top: 10%; } 
-            /* 手机上摄像头稍微小一点 */
-            #video-feed { width: 100px; height: 75px; top: 10px; right: 10px; }
-        }
+        @media (max-width: 600px) { #main-title { font-size: 32px; top: 10%; } }
     </style>
+
+    <script>
+        window.onerror = function(msg) {
+            var log = document.getElementById('error-log');
+            log.style.display = 'block'; log.innerText += "⚠️ " + msg + "\n";
+        };
+    </script>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/tween.js/18.6.4/tween.umd.js"></script>
     <script type="importmap">
@@ -91,20 +99,22 @@
         }
     }
     </script>
+    
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/control_utils/control_utils.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/hands.js" crossorigin="anonymous"></script>
 </head>
 <body>
 
     <div id="start-overlay">
         <h1 style="color:#FFD700; margin-bottom: 30px; text-shadow: 0 0 20px #FF4500;">🎄 北北的圣诞树</h1>
-        <button id="start-btn">✨ 点击开启魔法</button>
-        <div style="margin-top: 20px; font-size: 12px; color: #aaa;">开启后将自动播放音乐</div>
+        <button id="start-btn">⏳ 正在连接魔法...</button>
+        <div style="margin-top: 20px; font-size: 12px; color: #aaa;">请允许摄像头权限</div>
     </div>
 
     <div id="main-title">北北的圣诞树</div>
+    <div id="error-log"></div>
     <div id="music-control">🔊</div>
 
     <div id="ui-layer">
@@ -113,7 +123,6 @@
     </div>
 
     <video id="video-feed" playsinline muted></video>
-    
     <div id="canvas-container"></div>
     
     <audio id="bgm" loop>
@@ -126,22 +135,35 @@
         import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
         import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 
+        // --- 核心修复：检查 MediaPipe 是否加载完毕 ---
+        function checkLibraryLoaded() {
+            if (window.Hands && window.Camera) {
+                const btn = document.getElementById('start-btn');
+                btn.innerText = "✨ 点击开启魔法";
+                btn.classList.add('ready');
+            } else {
+                // 如果没加载完，500ms 后再查一次
+                setTimeout(checkLibraryLoaded, 500);
+            }
+        }
+        // 开始检查
+        checkLibraryLoaded();
+
         // --- 音乐控制 ---
         const bgm = document.getElementById('bgm');
         const musicIcon = document.getElementById('music-control');
         let isMusicPlaying = false;
 
         musicIcon.addEventListener('click', () => {
-            if(isMusicPlaying) {
-                bgm.pause(); musicIcon.innerText = "🔇"; isMusicPlaying = false;
-            } else {
-                bgm.play(); musicIcon.innerText = "🔊"; isMusicPlaying = true;
-            }
+            if(isMusicPlaying) { bgm.pause(); musicIcon.innerText = "🔇"; isMusicPlaying = false; } 
+            else { bgm.play(); musicIcon.innerText = "🔊"; isMusicPlaying = true; }
         });
 
         // --- 启动逻辑 ---
         const btn = document.getElementById('start-btn');
         btn.addEventListener('click', async function() {
+            if (!this.classList.contains('ready')) return; // 没加载完不准点
+
             this.innerText = "正在启动...";
             this.style.opacity = "0.7";
             try {
@@ -154,27 +176,18 @@
                 initMediaPipe();
             } catch (e) {
                 this.innerText = "❌ 启动失败";
-                alert("启动失败，请检查HTTPS和摄像头权限。");
+                document.getElementById('error-log').innerText = e.message;
+                alert("启动失败：\n1. 请确保网址是 HTTPS\n2. 请点击地址栏的锁图标，允许摄像头权限");
             }
         });
 
-        // --- 照片配置 ---
-        const MY_PHOTOS = [
-            'photos/1.jpg', 'photos/2.jpg', 'photos/3.jpg', 'photos/4.jpg', 'photos/5.jpg'
-        ];
-
+        // --- 配置 ---
+        const MY_PHOTOS = [ 'photos/1.jpg', 'photos/2.jpg', 'photos/3.jpg', 'photos/4.jpg', 'photos/5.jpg' ];
         const CONFIG = {
             colors: { gold: 0xFFD700, red: 0xDC143C, green: 0x006400 },
-            particleCount: 1600, 
-            treeHeight: 650,
-            treeRadius: 280,
-            snowCount: 3000,
-            // 照片基础尺寸
+            particleCount: 1600, treeHeight: 650, treeRadius: 280, snowCount: 3000,
             photoBaseSize: { width: 32, height: 42 },
-            photoBrightness: {
-                normal: { intensity: 0.5, color: {r:1, g:1, b:1} }, 
-                zoomed: { intensity: 0.8, color: {r:1, g:1, b:1} } 
-            }
+            photoBrightness: { normal: { intensity: 0.5, color: {r:1, g:1, b:1} }, zoomed: { intensity: 0.8, color: {r:1, g:1, b:1} } }
         };
 
         let scene, camera, renderer, composer;
@@ -204,7 +217,6 @@
 
             const ambient = new THREE.AmbientLight(0xffffff, 0.8);
             scene.add(ambient);
-            
             const topLight = new THREE.PointLight(CONFIG.colors.gold, 5.0, 1500);
             topLight.position.set(0, 600, 100);
             scene.add(topLight);
@@ -218,7 +230,6 @@
             const renderScene = new RenderPass(scene, camera);
             const bloom = new UnrealBloomPass(new THREE.Vector2(window.innerWidth, window.innerHeight), 1.5, 0.4, 0.85);
             bloom.threshold = 0.2; bloom.strength = 1.2; bloom.radius = 0.5;
-            
             composer = new EffectComposer(renderer);
             composer.addPass(renderScene);
             composer.addPass(bloom);
@@ -330,7 +341,6 @@
 
         function createPhotoMesh(tex) {
             tex.colorSpace = THREE.SRGBColorSpace;
-            // 1. 照片材质
             const photoMat = new THREE.MeshStandardMaterial({
                 map: tex, side: THREE.DoubleSide, roughness: 0.5, metalness: 0.1,
                 color: 0xffffff, emissive: 0xffffff, emissiveMap: tex, 
@@ -340,22 +350,17 @@
             const photoMesh = new THREE.Mesh(photoGeo, photoMat);
             photoMesh.renderOrder = 1;
 
-            // 2. 金色相框材质
             const frameMat = new THREE.MeshStandardMaterial({
-                color: 0xFFD700, metalness: 1.0, roughness: 0.2,
-                emissive: 0xFFD700, emissiveIntensity: 0.3 
+                color: 0xFFD700, metalness: 1.0, roughness: 0.2, emissive: 0xFFD700, emissiveIntensity: 0.3 
             });
             const frameMargin = 4;
             const frameGeo = new THREE.PlaneGeometry(CONFIG.photoBaseSize.width + frameMargin, CONFIG.photoBaseSize.height + frameMargin);
             const frameMesh = new THREE.Mesh(frameGeo, frameMat);
             frameMesh.position.z = -0.5; 
 
-            // 3. 组合
             const group = new THREE.Group();
-            group.add(photoMesh); 
-            group.add(frameMesh); 
+            group.add(photoMesh); group.add(frameMesh); 
 
-            // 4. 位置
             const y = Math.random() * (CONFIG.treeHeight - 100) - (CONFIG.treeHeight/2 - 50);
             const r = CONFIG.treeRadius * (1 - (y + CONFIG.treeHeight/2)/CONFIG.treeHeight) + 20;
             const theta = Math.random() * Math.PI * 2;
@@ -372,7 +377,6 @@
         function transformTo(mode) {
             if(currentMode === mode) return;
             currentMode = mode;
-            
             if(activePhoto) {
                 new TWEEN.Tween(activePhoto.scale).to({x:1, y:1, z:1}, 800).start();
                 if(activePhoto.children[0]) {
@@ -381,7 +385,6 @@
                 }
                 activePhoto = null;
             }
-
             const k = mode === 'TREE' ? 'treePos' : 'scatterPos';
             const ease = mode === 'TREE' ? TWEEN.Easing.Back.Out : TWEEN.Easing.Exponential.Out;
             particles.forEach(p => {
@@ -392,8 +395,7 @@
             });
             photos.forEach(p => {
                 new TWEEN.Tween(p.position).to(p.userData[k], 2000).easing(ease).onUpdate(() => { 
-                    if(p && mode === 'SCATTER') p.lookAt(camera.position); 
-                    else if(p) p.lookAt(0, p.position.y, 0); 
+                    if(p && mode === 'SCATTER') p.lookAt(camera.position); else if(p) p.lookAt(0, p.position.y, 0); 
                 }).start();
             });
         }
@@ -410,8 +412,6 @@
             }
 
             const targetPos = new THREE.Vector3().copy(camera.position).add(camera.getWorldDirection(new THREE.Vector3()).multiplyScalar(150));
-            
-            // 自适应缩放
             const isMobile = window.innerWidth < 600 || window.innerWidth < window.innerHeight;
             let targetScale;
             const margin = 0.85; 
@@ -466,9 +466,11 @@
         async function initMediaPipe() {
             if (!window.Hands) return;
             const videoElement = document.getElementById('video-feed');
-            const hands = new window.Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`});
+            const hands = new window.Hands({locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands@0.4.1646424915/${file}`});
+            
             hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6, minTrackingConfidence: 0.6 });
             hands.onResults(onResults);
+            
             const cam = new window.Camera(videoElement, {
                 onFrame: async () => { await hands.send({image: videoElement}); },
                 width: 320, height: 240, facingMode: "user"
